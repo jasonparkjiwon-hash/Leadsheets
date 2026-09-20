@@ -81,4 +81,4 @@ function selectChord(b,c){if(state.selected&&state.selected.b===b&&state.selecte
 function selectedChord(){return state.selected?state.draft.blocks[state.selected.b]?.chords[state.selected.c]:null}
 function patchSelected(patch){if(!state.selected)return;updateDraft(d=>{Object.assign(d.blocks[state.selected.b].chords[state.selected.c],patch)})}
 function blankStaged(){return {degree:1,acc:'',quality:null,bass:null,ticks:TPB,rest:false}}
-function patchActive(patch){if(state.selected){patchSelected(patch);return}state.staged={...(state.staged||blankStaged()),...patch};previewChord(state.staged);render()}
+function patchActive(patch){if(state.selected){patchSelected(patch);return}if(!state.staged)return;state.staged={...state.staged,...patch};previewChord(state.staged);render()}

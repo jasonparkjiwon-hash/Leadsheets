@@ -39,6 +39,7 @@
         .editor-tags{margin-top:9px!important;gap:6px!important}
         .mobile-play-row{
           display:flex;
+          flex-wrap:wrap;
           gap:8px;
           margin:8px 0 12px;
           padding:8px;
@@ -47,8 +48,11 @@
           background:rgba(255,255,255,.92);
           box-shadow:0 5px 18px rgba(7,26,53,.05);
         }
-        .mobile-play-row .mobile-play-main{flex:1}
+        .mobile-play-row .mobile-play-main{flex:1 1 100%}
         .mobile-play-row .btn{min-height:42px}
+        .mobile-play-row .mobile-vol{flex:1 1 auto;display:flex;align-items:center;gap:7px;min-width:0;padding:0 4px;color:var(--muted);font-size:13px}
+        .mobile-play-row .mobile-vol input{flex:1;accent-color:var(--teal)}
+        .mobile-play-row .mobile-vol span{font:11px var(--mono);width:34px;text-align:right;flex:0 0 auto}
       }
     `;
     document.head.appendChild(style);
@@ -101,6 +105,18 @@
     fromBtn.disabled=!state.selected;
     fromBtn.addEventListener('click',e=>act('play-selected',e));
     row.appendChild(fromBtn);
+
+    const vol=document.createElement('div');
+    vol.className='mobile-vol';
+    vol.innerHTML=`<span>\u{1F50A}</span><input type="range" min="0" max="250" value="${Math.round(state.volume*100)}"><span>${Math.round(state.volume*100)}%</span>`;
+    vol.querySelector('input').addEventListener('input',e=>{
+      state.volume=Number(e.target.value)/100;
+      savePrefs();
+      vol.querySelector('span:last-child').textContent=Math.round(state.volume*100)+'%';
+      const sidebarVol=document.querySelector('#volume');
+      if(sidebarVol){sidebarVol.value=e.target.value;sidebarVol.nextElementSibling.textContent=Math.round(state.volume*100)+'%'}
+    });
+    row.appendChild(vol);
 
     head.insertAdjacentElement('afterend',row);
   }

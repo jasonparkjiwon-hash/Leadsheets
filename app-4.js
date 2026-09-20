@@ -11,7 +11,6 @@ function wire(){
   if(typeof wireChordCells==='function')wireChordCells();
   else document.querySelectorAll('[data-chord]').forEach(el=>el.addEventListener('click',()=>{const [b,c]=el.dataset.chord.split(':').map(Number);selectChord(b,c)}));
   document.querySelectorAll('[data-degree]').forEach(el=>el.addEventListener('click',()=>addChord(Number(el.dataset.degree))));
-  document.querySelectorAll('[data-acc]').forEach(el=>el.addEventListener('click',()=>patchActive({acc:el.dataset.acc})));
   document.querySelectorAll('[data-quality]').forEach(el=>el.addEventListener('click',()=>patchActive({quality:el.dataset.quality==='auto'?null:el.dataset.quality})));
   document.querySelectorAll('[data-bass]').forEach(el=>el.addEventListener('click',()=>patchActive({bass:el.dataset.bass==='none'?null:{degree:Number(el.dataset.bass),acc:''}})));
   document.querySelectorAll('[data-piano]').forEach(el=>el.addEventListener('pointerdown',e=>{e.preventDefault();pianoPress(el.dataset.piano)}));

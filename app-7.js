@@ -1,8 +1,8 @@
 (function(){
-  // Staged-entry rule: adding a new chord (degree grid or the piano) previews
-  // it audibly without writing it to the chart, so you can hear it before
-  // committing. Editing an already-selected chart chord stays instant, since
-  // that's live editing of something already placed, not adding something new.
+  // Entry rule: the degree grid always adds/edits straight away (or edits an
+  // already-selected chart chord in place). Only chords built on the "play it
+  // in" piano get staged as an audible preview, since matching a played chord
+  // to a chip is the one case where you want to hear it before committing.
 
   addChord=function(degree){
     const d=state.draft;
@@ -17,9 +17,16 @@
       return;
     }
 
-    state.staged={...blankStaged(),...(state.staged||{}),degree,rest:false};
-    previewChord(state.staged);
-    render();
+    let added=null;
+    updateDraft(x=>{
+      const b=x.blocks[x.blocks.length-1],bt=x.bpb*TPB;
+      const used=b.chords.reduce((a,c)=>a+c.ticks,0);
+      const room=bt-(used%bt||0);
+      added={degree,acc:'',quality:null,bass:null,ticks:room||bt};
+      b.chords.push(added);
+      state.selected=null;
+    });
+    previewChord(added);
   };
 
   addRest=function(){

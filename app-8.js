@@ -1,15 +1,13 @@
 (function(){
   // Touch interface: tap a chord to select it, tap the same chord again to
-  // deselect it, drag a chord block to reorder it, and drag the small handle
-  // at a chord's right edge to change its length. While resizing, sliding
-  // your finger up snaps to finer beat subdivisions, the way a video scrubber
-  // slows down when you slide away from the timeline.
+  // deselect it, drag a chord block to reorder it, drag the small handle on
+  // its right edge to change its length (sliding up while dragging snaps to
+  // finer beat subdivisions), and press-and-hold a chord to pick a flat or
+  // sharp for it.
   const GRAIN_FULL=TPB, GRAIN_HALF=TPB/2, GRAIN_QUARTER=TPB/4;
   const MOVE_THRESHOLD=7;
+  const LONG_PRESS_MS=480;
 
-  function grainLabel(g){return g===GRAIN_QUARTER?'¼ beat snap':g===GRAIN_HALF?'½ beat snap':'1 beat snap'}
-  function ensureBadge(){let el=document.getElementById('dragGrainBadge');if(!el){el=document.createElement('div');el.id='dragGrainBadge';el.className='drag-grain-badge';document.body.appendChild(el)}return el}
-  function removeBadge(){document.getElementById('dragGrainBadge')?.remove()}
   function clearDropHighlight(){document.querySelectorAll('.drop-before,.drop-after,.drop-end').forEach(x=>x.classList.remove('drop-before','drop-after','drop-end'))}
 
   function startResize(e,bi,ci,handle){
@@ -22,26 +20,27 @@
     const startX=e.clientX,startY=e.clientY,startTicks=chord.ticks;
     let previewTicks=startTicks,moved=false;
     try{handle.setPointerCapture(e.pointerId)}catch(err){}
-    const badge=ensureBadge();
-    badge.style.display='block';
+    cell.classList.add('resizing');
+    function flashSnap(){cell.classList.remove('snap-flash');void cell.offsetWidth;cell.classList.add('snap-flash')}
     function onMove(ev){
       moved=true;
       const dx=ev.clientX-startX,dy=startY-ev.clientY;
       const grain=dy>90?GRAIN_QUARTER:dy>36?GRAIN_HALF:GRAIN_FULL;
       const raw=startTicks+dx/pxPerTick;
-      previewTicks=Math.max(grain,Math.round(raw/grain)*grain);
-      cell.style.flex=previewTicks;
-      badge.textContent=`${fmtBeats(previewTicks)} beats · ${grainLabel(grain)}`;
-      badge.style.left=ev.clientX+'px';
-      badge.style.top=ev.clientY+'px';
+      const next=Math.max(grain,Math.round(raw/grain)*grain);
+      if(next!==previewTicks){
+        previewTicks=next;
+        cell.style.flexGrow=previewTicks;
+        flashSnap();
+      }
     }
     function onUp(){
       handle.removeEventListener('pointermove',onMove);
       handle.removeEventListener('pointerup',onUp);
       handle.removeEventListener('pointercancel',onUp);
-      removeBadge();
+      cell.classList.remove('resizing','snap-flash');
       if(moved&&previewTicks!==startTicks)updateDraft(d=>{d.blocks[bi].chords[ci].ticks=previewTicks});
-      else{cell.style.flex='';render()}
+      else{cell.style.flexGrow='';render()}
     }
     handle.addEventListener('pointermove',onMove);
     handle.addEventListener('pointerup',onUp);
@@ -81,14 +80,52 @@
     state.selected=null;
   }
 
+  function closeAccidentalPopup(){document.getElementById('accPopup')?.remove()}
+  function showAccidentalPopup(bi,ci,cell){
+    closeAccidentalPopup();
+    const chord=state.draft.blocks[bi]?.chords[ci];
+    if(!chord||chord.rest)return;
+    const rect=cell.getBoundingClientRect();
+    const pop=document.createElement('div');
+    pop.id='accPopup';
+    pop.className='acc-popup';
+    pop.style.left=(rect.left+rect.width/2)+'px';
+    pop.style.top=rect.top+'px';
+    [['b','♭ flat'],['','♮ natural'],['#','♯ sharp']].forEach(([v,l])=>{
+      const btn=document.createElement('button');
+      btn.type='button';
+      btn.className='choice'+((chord.acc||'')===v?' active':'');
+      btn.textContent=l;
+      btn.addEventListener('pointerdown',ev=>ev.stopPropagation());
+      btn.addEventListener('click',ev=>{
+        ev.stopPropagation();
+        updateDraft(d=>{d.blocks[bi].chords[ci].acc=v});
+        closeAccidentalPopup();
+      });
+      pop.appendChild(btn);
+    });
+    document.body.appendChild(pop);
+    const onOutside=ev=>{if(!pop.contains(ev.target)){closeAccidentalPopup();document.removeEventListener('pointerdown',onOutside,true)}};
+    setTimeout(()=>document.addEventListener('pointerdown',onOutside,true),0);
+  }
+
   function startMove(e,bi,ci,cell){
     e.preventDefault();
     const startX=e.clientX,startY=e.clientY;
-    let dragging=false,ghost=null;
+    let dragging=false,ghost=null,longPressed=false;
     try{cell.setPointerCapture(e.pointerId)}catch(err){}
+    const chord=state.draft.blocks[bi]?.chords[ci];
+    let pressTimer=(chord&&!chord.rest)?setTimeout(()=>{
+      longPressed=true;
+      pressTimer=null;
+      try{cell.releasePointerCapture(e.pointerId)}catch(err){}
+      showAccidentalPopup(bi,ci,cell);
+    },LONG_PRESS_MS):null;
     function onMove(ev){
+      if(longPressed)return;
       const dx=ev.clientX-startX,dy=ev.clientY-startY;
       if(!dragging&&Math.hypot(dx,dy)>MOVE_THRESHOLD){
+        if(pressTimer){clearTimeout(pressTimer);pressTimer=null}
         dragging=true;
         cell.classList.add('dragging-source');
         const rect=cell.getBoundingClientRect();
@@ -106,10 +143,12 @@
       }
     }
     function onUp(){
+      if(pressTimer){clearTimeout(pressTimer);pressTimer=null}
       cell.removeEventListener('pointermove',onMove);
       cell.removeEventListener('pointerup',onUp);
       cell.removeEventListener('pointercancel',onUp);
       cell.classList.remove('dragging-source');
+      if(longPressed)return;
       if(dragging){
         ghost?.remove();
         clearDropHighlight();
