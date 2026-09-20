@@ -12,6 +12,7 @@ function wire(){
   else document.querySelectorAll('[data-chord]').forEach(el=>el.addEventListener('click',()=>{const [b,c]=el.dataset.chord.split(':').map(Number);selectChord(b,c)}));
   document.querySelectorAll('[data-degree]').forEach(el=>el.addEventListener('click',()=>addChord(Number(el.dataset.degree))));
   document.querySelectorAll('[data-bass]').forEach(el=>el.addEventListener('click',()=>patchActive({bass:el.dataset.bass==='none'?null:{degree:Number(el.dataset.bass),acc:''}})));
+  document.querySelectorAll('[data-len]').forEach(el=>el.addEventListener('click',()=>{const c=selectedChord();if(c)patchSelected({ticks:Math.max(TPB/2,c.ticks+Number(el.dataset.len))})}));
   document.querySelectorAll('[data-piano]').forEach(el=>el.addEventListener('pointerdown',e=>{e.preventDefault();pianoPress(el.dataset.piano)}));
   document.querySelectorAll('[data-detect]').forEach(el=>el.addEventListener('click',()=>stageDetected(Number(el.dataset.detect))));
   document.querySelectorAll('[data-name]').forEach(el=>el.addEventListener('change',()=>renameBlock(Number(el.dataset.name),el.value)));

@@ -8,6 +8,10 @@
   const HALF_BEAT_REACH=36;
   const MOVE_THRESHOLD=7;
   const LONG_PRESS_MS=480;
+  // A chord ending at the right margin has almost no room left to drag into,
+  // so holding the pointer against either screen edge keeps stepping the
+  // length instead of dead-ending there.
+  const EDGE_ZONE=44, EDGE_STEP_MS=240;
 
   // Chord types are picked category first, then the specific voicing inside
   // it, so a hold shows six choices instead of two dozen.
@@ -30,15 +34,14 @@
     if(!bar)return;
     const barTicks=s.bpb*TPB,barRect=bar.getBoundingClientRect(),pxPerTick=Math.max(1,barRect.width)/barTicks;
     const startX=e.clientX,startY=e.clientY,startTicks=chord.ticks;
-    let previewTicks=startTicks,moved=false;
+    let previewTicks=startTicks,moved=false,extra=0,edgeTimer=null,last={x:startX,y:startY};
     try{handle.setPointerCapture(e.pointerId)}catch(err){}
     cell.classList.add('resizing');
     function flashSnap(){cell.classList.remove('snap-flash');void cell.offsetWidth;cell.classList.add('snap-flash')}
-    function onMove(ev){
-      moved=true;
-      const dx=ev.clientX-startX,dy=ev.clientY-startY;
-      const grain=dy>HALF_BEAT_REACH?GRAIN_HALF:GRAIN_FULL;
-      const raw=startTicks+dx/pxPerTick;
+    function grainFor(y){return y-startY>HALF_BEAT_REACH?GRAIN_HALF:GRAIN_FULL}
+    function compute(){
+      const grain=grainFor(last.y);
+      const raw=startTicks+extra+(last.x-startX)/pxPerTick;
       const next=Math.max(grain,Math.round(raw/grain)*grain);
       if(next!==previewTicks){
         previewTicks=next;
@@ -46,7 +49,29 @@
         flashSnap();
       }
     }
+    function stopEdge(){if(edgeTimer){clearInterval(edgeTimer);edgeTimer=null}cell.classList.remove('edge-extending')}
+    function checkEdge(){
+      const dx=last.x-startX;
+      const dir=(last.x>window.innerWidth-EDGE_ZONE&&dx>6)?1:(last.x<EDGE_ZONE&&dx<-6)?-1:0;
+      if(!dir){stopEdge();return}
+      if(edgeTimer)return;
+      cell.classList.add('edge-extending');
+      edgeTimer=setInterval(()=>{
+        const grain=grainFor(last.y);
+        if(dir<0&&previewTicks<=grain)return;
+        extra+=dir*grain;
+        moved=true;
+        compute();
+      },EDGE_STEP_MS);
+    }
+    function onMove(ev){
+      moved=true;
+      last={x:ev.clientX,y:ev.clientY};
+      compute();
+      checkEdge();
+    }
     function onUp(){
+      stopEdge();
       handle.removeEventListener('pointermove',onMove);
       handle.removeEventListener('pointerup',onUp);
       handle.removeEventListener('pointercancel',onUp);

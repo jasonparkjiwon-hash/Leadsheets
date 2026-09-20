@@ -1,16 +1,16 @@
-const CACHE_NAME = 'leadsheets-offline-v5';
+const CACHE_NAME = 'leadsheets-offline-v6';
 const APP_SHELL = [
   './',
   './index.html',
-  './style.css?v=4',
+  './style.css?v=5',
   './app-1.js?v=4',
   './app-2.js?v=2',
-  './app-3.js?v=4',
-  './app-4.js?v=4',
+  './app-3.js?v=5',
+  './app-4.js?v=5',
   './app-5.js?v=2',
   './app-6.js?v=2',
   './app-7.js?v=3',
-  './app-8.js?v=3',
+  './app-8.js?v=4',
   './manifest.webmanifest?v=4',
   './apple-touch-icon.png',
   './apple-touch-icon-180.png'
