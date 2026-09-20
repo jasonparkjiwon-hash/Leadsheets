@@ -6,7 +6,6 @@ const KEY_NAMES_FLAT=['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
 const MAJOR=[0,2,4,5,7,9,11], MINOR=[0,2,3,5,7,8,10];
 const DIATONIC_MAJOR=['','m','m','','','m','dim'];
 const DIATONIC_MINOR=['m','dim','','m','m','',''];
-const QUALITIES=[['auto','Auto'],['','Maj'],['m','m'],['7','7'],['maj7','maj7'],['m7','m7'],['m9','m9'],['add9','add9'],['sus2','sus2'],['sus4','sus4'],['6','6'],['m6','m6'],['dim','dim'],['m7b5','ø7'],['dim7','dim7'],['7sus4','7sus4'],['9','9'],['maj9','maj9'],['11','11'],['13','13'],['7b9','7♭9'],['7#9','7♯9'],['5','5'],['aug','aug']];
 const QUALITY_IVS={'':[0,4,7],m:[0,3,7],7:[0,4,7,10],maj7:[0,4,7,11],m7:[0,3,7,10],m9:[0,3,7,10,14],add9:[0,4,7,14],sus2:[0,2,7],sus4:[0,5,7],6:[0,4,7,9],m6:[0,3,7,9],dim:[0,3,6],m7b5:[0,3,6,10],dim7:[0,3,6,9],'7sus4':[0,5,7,10],9:[0,4,7,10,14],maj9:[0,4,7,11,14],11:[0,5,7,10,14],13:[0,4,7,10,21],'7b9':[0,4,7,10,13],'7#9':[0,4,7,10,15],5:[0,7],aug:[0,4,8]};
 const PIANO_KEYS=['a','w','s','e','d','f','t','g','y','h','u','j','k','o','l','p',';','\''];
 const CHORD_TEMPLATES=[
@@ -73,6 +72,7 @@ function importJson(file){const r=new FileReader();r.onload=()=>{try{const p=JSO
 function chartText(s){let out=[`${s.title||'Untitled'}${s.artist?' — '+s.artist:''}`,`${s.keyName} ${s.mode} · ${s.bpb}/${s.unit} · ${s.tempo||90} bpm${s.feel?' · '+s.feel:''}`,''];s.blocks.forEach((b,bi)=>{out.push(`${b.name||'Section '+(bi+1)}${b.repeats>1?' ×'+b.repeats:''}`);const bt=s.bpb*TPB;layoutBars(b.chords,bt).forEach(bar=>out.push('| '+bar.map(x=>x.tied?'~':chordLabel(x.chord,s)+(x.ticks!==TPB?`(${fmtBeats(x.ticks)})`:'')).join('  ')+' |'));if(b.note)out.push('  '+b.note);out.push('')});return out.join('\n')}
 async function copyChart(){try{await navigator.clipboard.writeText(chartText(state.draft));toast('Chart copied')}catch(e){state.modal='text';render()}}
 function fmtBeats(t){const n=t/TPB;return Number.isInteger(n)?String(n):String(Math.round(n*100)/100)}
+function fracLabel(t){const rem=((t%TPB)+TPB)%TPB;if(!rem)return '';const whole=Math.floor(t/TPB);return rem===TPB/2?(whole||'')+'½':fmtBeats(t)}
 function showSettings(){state.modal='settings';render()}
 function saveMetaFromModal(){const t=$('#metaTitle').value.trim()||'Untitled',a=$('#metaArtist').value.trim();updateDraft(d=>{d.title=t;d.artist=a},false);state.modal=null;render()}
 function setKey(pc,preferFlat){updateDraft(d=>{d.keyPc=pc;d.useFlats=preferFlat;d.keyName=keyName(pc,preferFlat)})}

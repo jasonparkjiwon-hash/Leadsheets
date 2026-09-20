@@ -1,12 +1,24 @@
 (function(){
   // Touch interface: tap a chord to select it, tap the same chord again to
   // deselect it, drag a chord block to reorder it, drag the small handle on
-  // its right edge to change its length (sliding up while dragging snaps to
-  // finer beat subdivisions), and press-and-hold a chord to pick a flat or
-  // sharp for it.
-  const GRAIN_FULL=TPB, GRAIN_HALF=TPB/2, GRAIN_QUARTER=TPB/4;
+  // its right edge to change its length (it clicks to whole beats, or half
+  // beats while your finger is held below the start of the drag), and
+  // press-and-hold a chord to change its type.
+  const GRAIN_FULL=TPB, GRAIN_HALF=TPB/2;
+  const HALF_BEAT_REACH=36;
   const MOVE_THRESHOLD=7;
   const LONG_PRESS_MS=480;
+
+  // Chord types are picked category first, then the specific voicing inside
+  // it, so a hold shows six choices instead of two dozen.
+  const CHORD_GROUPS=[
+    ['Major','quality',[['','Maj'],['maj7','maj7'],['maj9','maj9'],['6','6'],['add9','add9']]],
+    ['Minor','quality',[['m','m'],['m7','m7'],['m9','m9'],['m6','m6']]],
+    ['Dominant','quality',[['7','7'],['9','9'],['11','11'],['13','13'],['7sus4','7sus4'],['7b9','7♭9'],['7#9','7♯9']]],
+    ['Sus / 5','quality',[['sus2','sus2'],['sus4','sus4'],['5','5']]],
+    ['Dim / Aug','quality',[['dim','dim'],['dim7','dim7'],['m7b5','ø7'],['aug','aug']]],
+    ['♭ / ♯','acc',[['b','♭ flat'],['','♮ natural'],['#','♯ sharp']]]
+  ];
 
   function clearDropHighlight(){document.querySelectorAll('.drop-before,.drop-after,.drop-end').forEach(x=>x.classList.remove('drop-before','drop-after','drop-end'))}
 
@@ -24,8 +36,8 @@
     function flashSnap(){cell.classList.remove('snap-flash');void cell.offsetWidth;cell.classList.add('snap-flash')}
     function onMove(ev){
       moved=true;
-      const dx=ev.clientX-startX,dy=startY-ev.clientY;
-      const grain=dy>90?GRAIN_QUARTER:dy>36?GRAIN_HALF:GRAIN_FULL;
+      const dx=ev.clientX-startX,dy=ev.clientY-startY;
+      const grain=dy>HALF_BEAT_REACH?GRAIN_HALF:GRAIN_FULL;
       const raw=startTicks+dx/pxPerTick;
       const next=Math.max(grain,Math.round(raw/grain)*grain);
       if(next!==previewTicks){
@@ -80,32 +92,65 @@
     state.selected=null;
   }
 
-  function closeAccidentalPopup(){document.getElementById('accPopup')?.remove()}
-  function showAccidentalPopup(bi,ci,cell){
-    closeAccidentalPopup();
+  function closeChordPopup(){document.getElementById('chordPopup')?.remove()}
+  function placePopup(pop,rect){
+    pop.classList.remove('below');
+    pop.style.left='-9999px';
+    pop.style.top='0px';
+    const pw=pop.offsetWidth,ph=pop.offsetHeight,half=pw/2;
+    let left=clamp(rect.left+rect.width/2,8+half,Math.max(8+half,window.innerWidth-8-half));
+    let top=rect.top-10;
+    if(rect.top-ph-14<8){top=rect.bottom+10;pop.classList.add('below')}
+    pop.style.left=left+'px';
+    pop.style.top=top+'px';
+  }
+  function showChordPopup(bi,ci,cell){
+    closeChordPopup();
     const chord=state.draft.blocks[bi]?.chords[ci];
     if(!chord||chord.rest)return;
     const rect=cell.getBoundingClientRect();
+    const quality=chord.quality==null?null:(chord.quality||'');
     const pop=document.createElement('div');
-    pop.id='accPopup';
-    pop.className='acc-popup';
-    pop.style.left=(rect.left+rect.width/2)+'px';
-    pop.style.top=rect.top+'px';
-    [['b','♭ flat'],['','♮ natural'],['#','♯ sharp']].forEach(([v,l])=>{
-      const btn=document.createElement('button');
-      btn.type='button';
-      btn.className='choice'+((chord.acc||'')===v?' active':'');
-      btn.textContent=l;
-      btn.addEventListener('pointerdown',ev=>ev.stopPropagation());
-      btn.addEventListener('click',ev=>{
-        ev.stopPropagation();
-        updateDraft(d=>{d.blocks[bi].chords[ci].acc=v});
-        closeAccidentalPopup();
-      });
-      pop.appendChild(btn);
-    });
+    pop.id='chordPopup';
+    pop.className='chord-popup';
     document.body.appendChild(pop);
-    const onOutside=ev=>{if(!pop.contains(ev.target)){closeAccidentalPopup();document.removeEventListener('pointerdown',onOutside,true)}};
+
+    function button(label,cls,onTap){
+      const b=document.createElement('button');
+      b.type='button';
+      b.className='choice'+(cls?' '+cls:'');
+      b.textContent=label;
+      b.addEventListener('pointerdown',ev=>ev.stopPropagation());
+      b.addEventListener('click',ev=>{ev.stopPropagation();onTap()});
+      return b;
+    }
+    function apply(kind,v){
+      updateDraft(d=>{const c=d.blocks[bi].chords[ci];if(kind==='acc')c.acc=v;else c.quality=v});
+      const after=state.draft.blocks[bi]?.chords[ci];
+      if(after)previewChord(after);
+      closeChordPopup();
+    }
+    function showCategories(){
+      pop.innerHTML='';
+      pop.appendChild(button('Auto',quality===null?'active':'',()=>apply('quality',null)));
+      CHORD_GROUPS.forEach(([name,kind,items],i)=>{
+        const active=kind==='acc'?!!(chord.acc||''):items.some(([v])=>v===quality);
+        pop.appendChild(button(name+' ›',active?'active':'',()=>showGroup(i)));
+      });
+      placePopup(pop,rect);
+    }
+    function showGroup(i){
+      const [,kind,items]=CHORD_GROUPS[i];
+      pop.innerHTML='';
+      pop.appendChild(button('‹',' back',showCategories));
+      items.forEach(([v,l])=>{
+        const active=kind==='acc'?(chord.acc||'')===v:quality===v;
+        pop.appendChild(button(l,active?'active':'',()=>apply(kind,v)));
+      });
+      placePopup(pop,rect);
+    }
+    showCategories();
+    const onOutside=ev=>{if(!pop.contains(ev.target)){closeChordPopup();document.removeEventListener('pointerdown',onOutside,true)}};
     setTimeout(()=>document.addEventListener('pointerdown',onOutside,true),0);
   }
 
@@ -119,7 +164,7 @@
       longPressed=true;
       pressTimer=null;
       try{cell.releasePointerCapture(e.pointerId)}catch(err){}
-      showAccidentalPopup(bi,ci,cell);
+      showChordPopup(bi,ci,cell);
     },LONG_PRESS_MS):null;
     function onMove(ev){
       if(longPressed)return;
@@ -169,6 +214,11 @@
         const [bi,ci]=cell.dataset.chord.split(':').map(Number);
         startMove(e,bi,ci,cell);
       });
+      // A hold is our gesture, so keep the browser from turning it into a
+      // text selection or a callout menu over the chord name.
+      cell.addEventListener('selectstart',e=>e.preventDefault());
+      cell.addEventListener('contextmenu',e=>e.preventDefault());
+      cell.addEventListener('dragstart',e=>e.preventDefault());
     });
     document.querySelectorAll('[data-resize]').forEach(handle=>{
       handle.addEventListener('pointerdown',e=>{
