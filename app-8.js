@@ -11,7 +11,7 @@
   // A chord ending at the right margin has almost no room left to drag into,
   // so holding the pointer against either screen edge keeps stepping the
   // length instead of dead-ending there.
-  const EDGE_ZONE=44, EDGE_STEP_MS=240;
+  const EDGE_ZONE=72, EDGE_STEP_MS=240;
 
   // Chord types are picked category first, then the specific voicing inside
   // it, so a hold shows six choices instead of two dozen.
@@ -52,7 +52,7 @@
     function stopEdge(){if(edgeTimer){clearInterval(edgeTimer);edgeTimer=null}cell.classList.remove('edge-extending')}
     function checkEdge(){
       const dx=last.x-startX;
-      const dir=(last.x>window.innerWidth-EDGE_ZONE&&dx>6)?1:(last.x<EDGE_ZONE&&dx<-6)?-1:0;
+      const dir=(last.x>window.innerWidth-EDGE_ZONE&&dx>2)?1:(last.x<EDGE_ZONE&&dx<-2)?-1:0;
       if(!dir){stopEdge();return}
       if(edgeTimer)return;
       cell.classList.add('edge-extending');
