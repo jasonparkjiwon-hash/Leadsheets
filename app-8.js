@@ -11,7 +11,7 @@
   // A chord ending at the right margin has almost no room left to drag into,
   // so holding the pointer against either screen edge keeps stepping the
   // length instead of dead-ending there.
-  const EDGE_ZONE=72, EDGE_STEP_MS=240;
+  const EDGE_ZONE=72, EDGE_STEP_MS=420;
 
   // Chord types are picked category first, then the specific voicing inside
   // it, so a hold shows six choices instead of two dozen.
@@ -33,6 +33,9 @@
     const cell=handle.closest('.chord-cell'),bar=cell&&cell.closest('.bar');
     if(!bar)return;
     const barTicks=s.bpb*TPB,barRect=bar.getBoundingClientRect(),pxPerTick=Math.max(1,barRect.width)/barTicks;
+    // On a chord that wraps across bars the handle rides its last segment,
+    // which only shows the remainder, so the live preview sizes that piece.
+    const segOffset=Number(handle.dataset.segOffset)||0;
     const startX=e.clientX,startY=e.clientY,startTicks=chord.ticks;
     let previewTicks=startTicks,moved=false,extra=0,edgeTimer=null,last={x:startX,y:startY};
     try{handle.setPointerCapture(e.pointerId)}catch(err){}
@@ -45,7 +48,7 @@
       const next=Math.max(grain,Math.round(raw/grain)*grain);
       if(next!==previewTicks){
         previewTicks=next;
-        cell.style.flexGrow=previewTicks;
+        cell.style.flexGrow=Math.max(1,previewTicks-segOffset);
         flashSnap();
       }
     }
