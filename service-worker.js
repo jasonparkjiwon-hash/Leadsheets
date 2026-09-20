@@ -1,4 +1,4 @@
-const CACHE_NAME = 'leadsheets-offline-v1';
+const CACHE_NAME = 'leadsheets-offline-v2';
 const APP_SHELL = [
   './',
   './index.html',
@@ -9,7 +9,8 @@ const APP_SHELL = [
   './app-4.js',
   './app-5.js?v=2',
   './app-6.js?v=1',
-  './app-7.js?v=1',
+  './app-7.js?v=2',
+  './app-8.js?v=1',
   './manifest.webmanifest?v=4',
   './apple-touch-icon.png',
   './apple-touch-icon-180.png'
