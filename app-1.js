@@ -8,7 +8,6 @@ const DIATONIC_MAJOR=['','m','m','','','m','dim'];
 const DIATONIC_MINOR=['m','dim','','m','m','',''];
 const QUALITIES=[['auto','Auto'],['','Maj'],['m','m'],['7','7'],['maj7','maj7'],['m7','m7'],['m9','m9'],['add9','add9'],['sus2','sus2'],['sus4','sus4'],['6','6'],['m6','m6'],['dim','dim'],['m7b5','ø7'],['dim7','dim7'],['7sus4','7sus4'],['9','9'],['maj9','maj9'],['11','11'],['13','13'],['7b9','7♭9'],['7#9','7♯9'],['5','5'],['aug','aug']];
 const QUALITY_IVS={'':[0,4,7],m:[0,3,7],7:[0,4,7,10],maj7:[0,4,7,11],m7:[0,3,7,10],m9:[0,3,7,10,14],add9:[0,4,7,14],sus2:[0,2,7],sus4:[0,5,7],6:[0,4,7,9],m6:[0,3,7,9],dim:[0,3,6],m7b5:[0,3,6,10],dim7:[0,3,6,9],'7sus4':[0,5,7,10],9:[0,4,7,10,14],maj9:[0,4,7,11,14],11:[0,5,7,10,14],13:[0,4,7,10,21],'7b9':[0,4,7,10,13],'7#9':[0,4,7,10,15],5:[0,7],aug:[0,4,8]};
-const DURATIONS=[[3,'¼'],[4,'⅓'],[6,'½'],[8,'⅔'],[9,'¾'],[12,'1'],[18,'1½'],[24,'2'],[36,'3'],[48,'4'],[60,'5'],[72,'6'],[84,'7'],[96,'8'],[108,'9']];
 const PIANO_KEYS=['a','w','s','e','d','f','t','g','y','h','u','j','k','o','l','p',';','\''];
 const CHORD_TEMPLATES=[
   [[0,7],'5'],[[0,4,7],''],[[0,3,7],'m'],[[0,3,6],'dim'],[[0,4,8],'aug'],[[0,5,7],'sus4'],[[0,2,7],'sus2'],
@@ -21,7 +20,7 @@ const clone=o=>JSON.parse(JSON.stringify(o));
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const uid=p=>p+Date.now()+Math.random().toString(36).slice(2,6);
-let state={view:'library',sheets:[],draft:null,selected:null,asLetters:true,filter:'all',sort:'recent',query:'',playing:false,playPos:-1,playPlan:null,metronome:false,volume:1,saveState:'',undo:[],redo:[],toast:'',modal:null,prefs:{},pianoHeld:[],pianoLatch:true,pianoOctave:0};
+let state={view:'library',sheets:[],draft:null,selected:null,staged:null,asLetters:true,filter:'all',sort:'recent',query:'',playing:false,playPos:-1,playPlan:null,metronome:false,volume:1,saveState:'',undo:[],redo:[],toast:'',modal:null,prefs:{},pianoHeld:[],pianoLatch:true,pianoOctave:0};
 let audio={ctx:null,nodes:[],live:{},timer:null,raf:null};
 
 function migrate(s){
@@ -43,8 +42,8 @@ function savePrefs(){localStorage.setItem(PREF_KEY,JSON.stringify({volume:state.
 let saveTimer=null;
 function scheduleSave(){state.saveState='saving';renderTopOnly();clearTimeout(saveTimer);saveTimer=setTimeout(()=>{if(!state.draft)return; state.draft.savedAt=Date.now(); const i=state.sheets.findIndex(s=>s.id===state.draft.id); if(i>=0)state.sheets[i]=clone(state.draft);else state.sheets.unshift(clone(state.draft));persistSheets();localStorage.removeItem(DRAFT_KEY);state.saveState='saved';renderTopOnly();},450)}
 function updateDraft(mut,history=true){if(!state.draft)return;if(history){state.undo.push(clone(state.draft));if(state.undo.length>60)state.undo.shift();state.redo=[]}mut(state.draft);state.draft=migrate(state.draft);scheduleSave();render()}
-function undo(){if(!state.undo.length)return;state.redo.push(clone(state.draft));state.draft=state.undo.pop();state.selected=null;scheduleSave();render()}
-function redo(){if(!state.redo.length)return;state.undo.push(clone(state.draft));state.draft=state.redo.pop();state.selected=null;scheduleSave();render()}
+function undo(){if(!state.undo.length)return;state.redo.push(clone(state.draft));state.draft=state.undo.pop();state.selected=null;state.staged=null;scheduleSave();render()}
+function redo(){if(!state.redo.length)return;state.undo.push(clone(state.draft));state.draft=state.redo.pop();state.selected=null;state.staged=null;scheduleSave();render()}
 function toast(msg){state.toast=msg;renderToast();setTimeout(()=>{if(state.toast===msg){state.toast='';renderToast()}},1600)}
 function renderToast(){let el=$('#toast');if(!state.toast){if(el)el.remove();return}if(!el){el=document.createElement('div');el.id='toast';el.className='toast';document.body.appendChild(el)}el.textContent=state.toast}
 function keyName(pc,flats){pc=(pc%12+12)%12;return (flats?KEY_NAMES_FLAT:KEY_NAMES_SHARP)[pc]}
@@ -55,7 +54,7 @@ function actualQuality(c,mode){return c.quality==null?defaultQuality(c.degree,mo
 function chordParts(c,s){if(c.rest)return {root:'R',sfx:'',bass:''};const rootPc=(s.keyPc+degreePc(c.degree,c.acc,s.mode))%12;const root=state.asLetters?keyName(rootPc,s.useFlats):(c.acc||'')+c.degree;let q=actualQuality(c,s.mode);let bass='';if(c.bass){const bpc=(s.keyPc+degreePc(c.bass.degree,c.bass.acc,s.mode))%12;bass=state.asLetters?keyName(bpc,s.useFlats):(c.bass.acc||'')+c.bass.degree}return {root,sfx:q,bass}}
 function chordLabel(c,s){const p=chordParts(c,s);if(c.rest)return 'Rest';return p.root+(p.sfx||'')+(p.bass?'/'+p.bass:'')}
 function pcToDegree(pc,keyPc,mode){const st=scale(mode),rel=(pc-keyPc+12)%12;for(let i=0;i<7;i++)if(st[i]===rel)return{degree:i+1,acc:''};for(let i=0;i<7;i++)if((st[i]+11)%12===rel)return{degree:i+1,acc:'b'};for(let i=0;i<7;i++)if((st[i]+1)%12===rel)return{degree:i+1,acc:'#'};return{degree:1,acc:''}}
-function detectChords(pcs,bassPc){if(!pcs.length)return[];const out=[];for(let root=0;root<12;root++)for(const [ivs,sfx] of CHORD_TEMPLATES){const want=ivs.map(i=>(root+i)%12),matched=pcs.filter(p=>want.includes(p)).length,missing=want.length-matched,extra=pcs.length-matched;let score=matched*3-missing*2.5-extra*2.5;if(root===bassPc)score+=1.5;score+=want.length*.15;if(matched>=2&&score>0)out.push({root,sfx,score,size:want.length})}out.sort((a,b)=>b.score-a.score||b.size-a.size);const seen=new Set;return out.filter(x=>{const k=x.root+x.sfx;if(seen.has(k))return false;seen.add(k);return true}).slice(0,3)}
+function detectChords(pcs,bassPc){if(!pcs.length)return[];const out=[];for(let root=0;root<12;root++)for(const [ivs,sfx] of CHORD_TEMPLATES){const want=ivs.map(i=>(root+i)%12),matched=pcs.filter(p=>want.includes(p)).length,missing=want.length-matched,extra=pcs.length-matched;let score=matched*3-missing*2.5-extra*2.5;if(root===bassPc)score+=1.5;score+=want.length*.15;if(matched>=2&&score>0)out.push({root,sfx,score,size:want.length})}out.sort((a,b)=>b.score-a.score||b.size-a.size);const seen=new Set;return out.filter(x=>{const k=x.root+x.sfx;if(seen.has(k))return false;seen.add(k);return true}).slice(0,7)}
 function detectedToChord(m,bassPc,s){const r=pcToDegree(m.root,s.keyPc,s.mode),diat=defaultQuality(r.degree,s.mode),c={degree:r.degree,acc:r.acc,quality:m.sfx===diat?null:m.sfx,bass:null,ticks:TPB};if(bassPc!=null&&bassPc!==m.root)c.bass=pcToDegree(bassPc,s.keyPc,s.mode);return c}
 function pianoBase(){return 60+(state.draft?.keyPc||0)+state.pianoOctave*12}
 function pianoInfo(){const base=pianoBase(),pcs=[];state.pianoHeld.slice().sort((a,b)=>a-b).forEach(semi=>{const pc=(base+semi)%12;if(!pcs.includes(pc))pcs.push(pc)});const bass=state.pianoHeld.length?(base+Math.min(...state.pianoHeld))%12:null;return{base,pcs,bass,matches:detectChords(pcs,bass)}}
@@ -63,9 +62,9 @@ function pianoInfo(){const base=pianoBase(),pcs=[];state.pianoHeld.slice().sort(
 function barsCount(s){const bt=s.bpb*TPB;return s.blocks.reduce((n,b)=>n+Math.ceil((b.chords||[]).reduce((a,c)=>a+c.ticks,0)/bt)*Math.max(1,b.repeats||1),0)}
 function layoutBars(chords,barTicks){const bars=[];let bar=[],used=0;chords.forEach((c,index)=>{let left=Math.max(1,c.ticks||TPB),first=true;while(left>0){if(used>=barTicks){bars.push(bar);bar=[];used=0}const take=Math.min(left,barTicks-used);bar.push({chord:c,index,ticks:take,tied:!first});used+=take;left-=take;first=false;if(used===barTicks){bars.push(bar);bar=[];used=0}}});if(bar.length)bars.push(bar);return bars.length?bars:[[]]}
 function sheetDate(s){if(!s.savedAt)return'';try{return new Date(s.savedAt).toLocaleDateString(undefined,{month:'short',day:'numeric'})}catch(e){return''}}
-function openSheet(id){stopPlayback();state.draft=clone(state.sheets.find(s=>s.id===id));state.view='editor';state.selected=null;state.undo=[];state.redo=[];window.scrollTo({top:0});render()}
-function newSheet(kind){stopPlayback();state.draft=blankSheet(kind);state.view='editor';state.selected=null;state.undo=[];state.redo=[];localStorage.setItem(DRAFT_KEY,JSON.stringify(state.draft));window.scrollTo({top:0});render()}
-function backLibrary(){stopPlayback();state.view='library';state.draft=null;state.selected=null;render()}
+function openSheet(id){stopPlayback();state.draft=clone(state.sheets.find(s=>s.id===id));state.view='editor';state.selected=null;state.staged=null;state.undo=[];state.redo=[];window.scrollTo({top:0});render()}
+function newSheet(kind){stopPlayback();state.draft=blankSheet(kind);state.view='editor';state.selected=null;state.staged=null;state.undo=[];state.redo=[];localStorage.setItem(DRAFT_KEY,JSON.stringify(state.draft));window.scrollTo({top:0});render()}
+function backLibrary(){stopPlayback();state.view='library';state.draft=null;state.selected=null;state.staged=null;render()}
 function duplicateSheet(id){const s=clone(state.sheets.find(x=>x.id===id));s.id=uid('s');s.title=(s.title||'Untitled')+' (copy)';s.savedAt=Date.now();state.sheets.unshift(s);persistSheets();render();toast('Duplicated')}
 function deleteSheet(id){state.sheets=state.sheets.filter(s=>s.id!==id);persistSheets();render();toast('Deleted')}
 function download(name,text,type='application/json'){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
@@ -78,6 +77,8 @@ function showSettings(){state.modal='settings';render()}
 function saveMetaFromModal(){const t=$('#metaTitle').value.trim()||'Untitled',a=$('#metaArtist').value.trim();updateDraft(d=>{d.title=t;d.artist=a},false);state.modal=null;render()}
 function setKey(pc,preferFlat){updateDraft(d=>{d.keyPc=pc;d.useFlats=preferFlat;d.keyName=keyName(pc,preferFlat)})}
 function transpose(dir){updateDraft(d=>{d.keyPc=(d.keyPc+dir+12)%12;d.keyName=keyName(d.keyPc,d.useFlats)})}
-function selectChord(b,c){state.selected={b,c};previewChord(state.draft.blocks[b].chords[c]);render()}
+function selectChord(b,c){if(state.selected&&state.selected.b===b&&state.selected.c===c){state.selected=null;render();return}state.staged=null;state.selected={b,c};previewChord(state.draft.blocks[b].chords[c]);render()}
 function selectedChord(){return state.selected?state.draft.blocks[state.selected.b]?.chords[state.selected.c]:null}
 function patchSelected(patch){if(!state.selected)return;updateDraft(d=>{Object.assign(d.blocks[state.selected.b].chords[state.selected.c],patch)})}
+function blankStaged(){return {degree:1,acc:'',quality:null,bass:null,ticks:TPB,rest:false}}
+function patchActive(patch){if(state.selected){patchSelected(patch);return}state.staged={...(state.staged||blankStaged()),...patch};previewChord(state.staged);render()}

@@ -1,14 +1,13 @@
 (function(){
-  // New-entry rule: adding a chord/rest from the capture controls must append and
-  // leave selection empty. Selection is reserved for chords the user explicitly
-  // taps in the chart for editing.
+  // Staged-entry rule: adding a new chord (degree grid or the piano) previews
+  // it audibly without writing it to the chart, so you can hear it before
+  // committing. Editing an already-selected chart chord stays instant, since
+  // that's live editing of something already placed, not adding something new.
 
   addChord=function(degree){
     const d=state.draft;
     if(!d)return;
 
-    // Explicitly selected chart chord: edit it and keep it selected so the user
-    // can continue adjusting quality, bass, duration, etc.
     if(state.selected){
       updateDraft(x=>{
         const c=x.blocks[state.selected.b].chords[state.selected.c],ticks=c.ticks;
@@ -18,17 +17,9 @@
       return;
     }
 
-    let added=null;
-    updateDraft(x=>{
-      const b=x.blocks[x.blocks.length-1],bt=x.bpb*TPB;
-      const used=b.chords.reduce((a,c)=>a+c.ticks,0);
-      const room=bt-(used%bt||0);
-      added={degree,acc:'',quality:null,bass:null,ticks:room||bt};
-      b.chords.push(added);
-      // Do not auto-select newly entered chords.
-      state.selected=null;
-    });
-    previewChord(added);
+    state.staged={...blankStaged(),...(state.staged||{}),degree,rest:false};
+    previewChord(state.staged);
+    render();
   };
 
   addRest=function(){
@@ -36,6 +27,7 @@
       patchSelected({rest:true,degree:undefined,acc:undefined,quality:undefined,bass:undefined});
       return;
     }
+    state.staged=null;
     updateDraft(x=>{
       const b=x.blocks[x.blocks.length-1],bt=x.bpb*TPB;
       const used=b.chords.reduce((a,c)=>a+c.ticks,0);
@@ -45,7 +37,7 @@
     });
   };
 
-  commitDetected=function(i=0){
+  stageDetected=function(i=0){
     const info=pianoInfo(),m=info.matches[i];
     if(!m)return;
     const chord=detectedToChord(m,info.bass,state.draft);
@@ -55,22 +47,34 @@
       updateDraft(d=>{
         d.blocks[state.selected.b].chords[state.selected.c]={...chord,ticks};
       });
-      clearPiano();
       previewChord(selectedChord());
       return;
     }
 
-    let added=null;
-    updateDraft(d=>{
-      const b=d.blocks[d.blocks.length-1],bt=d.bpb*TPB;
+    state.staged=chord;
+    previewChord(state.staged);
+    render();
+  };
+
+  commitStaged=function(){
+    if(!state.staged||state.selected)return;
+    const chord=state.staged;
+    updateDraft(x=>{
+      const b=x.blocks[x.blocks.length-1],bt=x.bpb*TPB;
       const used=b.chords.reduce((a,c)=>a+c.ticks,0);
       const room=bt-(used%bt||0);
-      added={...chord,ticks:room||bt};
-      b.chords.push(added);
+      b.chords.push({...chord,ticks:room||bt});
       state.selected=null;
     });
+    state.staged=null;
     clearPiano();
-    previewChord(added);
+    toast('Chord added');
+  };
+
+  cancelStaged=function(){
+    if(!state.staged)return;
+    state.staged=null;
+    clearPiano();
   };
 
   if(state.view==='editor')render();
