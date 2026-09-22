@@ -41,6 +41,7 @@ function persistSheets(){localStorage.setItem(STORE_KEY,JSON.stringify({version:
 function cleanCMajor(list){return Array.isArray(list)?list.filter(x=>x&&typeof x.title==='string'&&x.title.trim()).map(x=>({id:x.id||uid('c'),title:x.title.trim().slice(0,120),artist:String(x.artist||'').trim().slice(0,120)})):[]}
 function saveCMajor(){localStorage.setItem(CMAJOR_KEY,JSON.stringify(state.cMajor))}
 function cMajorKey(x){return (x.title+'|'+x.artist).toLowerCase()}
+function cMajorSorted(){return [...state.cMajor].sort((a,b)=>a.title.localeCompare(b.title,undefined,{sensitivity:'base'}))}
 function addCMajor(title,artist){const entry={id:uid('c'),title:title.trim().slice(0,120),artist:artist.trim().slice(0,120)};if(!entry.title)return;if(state.cMajor.some(x=>cMajorKey(x)===cMajorKey(entry))){toast('Already on the list');return}state.cMajor.push(entry);state.cMajorShown=entry.id;saveCMajor();render();$('#cmTitle')?.focus()}
 function removeCMajor(id){const i=state.cMajor.findIndex(x=>x.id===id);if(i<0)return;const [gone]=state.cMajor.splice(i,1);if(state.cMajorShown===id)state.cMajorShown=null;saveCMajor();render();toast('Removed '+gone.title,{label:'Undo',run:()=>restoreCMajor(gone,i)})}
 function restoreCMajor(entry,index){if(state.cMajor.some(x=>x.id===entry.id||cMajorKey(x)===cMajorKey(entry)))return;state.cMajor.splice(Math.min(index,state.cMajor.length),0,entry);state.cMajorShown=entry.id;saveCMajor();render()}

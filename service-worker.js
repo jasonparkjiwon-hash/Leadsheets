@@ -1,13 +1,13 @@
-const CACHE_NAME = 'leadsheets-offline-v11';
+const CACHE_NAME = 'leadsheets-offline-v12';
 const APP_SHELL = [
   './',
   './index.html',
   './style.css?v=9',
-  './app-1.js?v=8',
+  './app-1.js?v=9',
   './app-2.js?v=3',
-  './app-3.js?v=9',
+  './app-3.js?v=10',
   './app-4.js?v=7',
-  './app-5.js?v=2',
+  './app-5.js?v=3',
   './app-6.js?v=3',
   './app-7.js?v=3',
   './app-8.js?v=6',
