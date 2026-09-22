@@ -42,15 +42,17 @@ function cleanCMajor(list){return Array.isArray(list)?list.filter(x=>x&&typeof x
 function saveCMajor(){localStorage.setItem(CMAJOR_KEY,JSON.stringify(state.cMajor))}
 function cMajorKey(x){return (x.title+'|'+x.artist).toLowerCase()}
 function addCMajor(title,artist){const entry={id:uid('c'),title:title.trim().slice(0,120),artist:artist.trim().slice(0,120)};if(!entry.title)return;if(state.cMajor.some(x=>cMajorKey(x)===cMajorKey(entry))){toast('Already on the list');return}state.cMajor.push(entry);state.cMajorShown=entry.id;saveCMajor();render();$('#cmTitle')?.focus()}
-function removeCMajor(id){const gone=state.cMajor.find(x=>x.id===id);if(!gone)return;state.cMajor=state.cMajor.filter(x=>x.id!==id);if(state.cMajorShown===id)state.cMajorShown=null;saveCMajor();render();toast('Removed '+gone.title)}
+function removeCMajor(id){const i=state.cMajor.findIndex(x=>x.id===id);if(i<0)return;const [gone]=state.cMajor.splice(i,1);if(state.cMajorShown===id)state.cMajorShown=null;saveCMajor();render();toast('Removed '+gone.title,{label:'Undo',run:()=>restoreCMajor(gone,i)})}
+function restoreCMajor(entry,index){if(state.cMajor.some(x=>x.id===entry.id||cMajorKey(x)===cMajorKey(entry)))return;state.cMajor.splice(Math.min(index,state.cMajor.length),0,entry);state.cMajorShown=entry.id;saveCMajor();render()}
 function savePrefs(){localStorage.setItem(PREF_KEY,JSON.stringify({volume:state.volume,asLetters:state.asLetters}))}
 let saveTimer=null;
 function scheduleSave(){state.saveState='saving';renderTopOnly();clearTimeout(saveTimer);saveTimer=setTimeout(()=>{if(!state.draft)return; state.draft.savedAt=Date.now(); const i=state.sheets.findIndex(s=>s.id===state.draft.id); if(i>=0)state.sheets[i]=clone(state.draft);else state.sheets.unshift(clone(state.draft));persistSheets();localStorage.removeItem(DRAFT_KEY);state.saveState='saved';renderTopOnly();},450)}
 function updateDraft(mut,history=true){if(!state.draft)return;if(history){state.undo.push(clone(state.draft));if(state.undo.length>60)state.undo.shift();state.redo=[]}mut(state.draft);state.draft=migrate(state.draft);scheduleSave();render()}
 function undo(){if(!state.undo.length)return;state.redo.push(clone(state.draft));state.draft=state.undo.pop();state.selected=null;state.staged=null;scheduleSave();render()}
 function redo(){if(!state.redo.length)return;state.undo.push(clone(state.draft));state.draft=state.redo.pop();state.selected=null;state.staged=null;scheduleSave();render()}
-function toast(msg){state.toast=msg;renderToast();setTimeout(()=>{if(state.toast===msg){state.toast='';renderToast()}},1600)}
-function renderToast(){let el=$('#toast');if(!state.toast){if(el)el.remove();return}if(!el){el=document.createElement('div');el.id='toast';el.className='toast';document.body.appendChild(el)}el.textContent=state.toast}
+let toastTimer=null,toastAction=null;
+function toast(msg,action){state.toast=msg;toastAction=action||null;renderToast();clearTimeout(toastTimer);toastTimer=setTimeout(()=>{state.toast='';toastAction=null;renderToast()},action?6000:1600)}
+function renderToast(){let el=$('#toast');if(!state.toast){if(el)el.remove();return}if(!el){el=document.createElement('div');el.id='toast';el.className='toast';document.body.appendChild(el)}el.textContent='';const msg=document.createElement('span');msg.className='toast-msg';msg.textContent=state.toast;el.appendChild(msg);el.classList.toggle('has-action',!!toastAction);if(toastAction){const b=document.createElement('button');b.type='button';b.className='toast-action';b.textContent=toastAction.label;const run=toastAction.run;b.addEventListener('click',()=>{clearTimeout(toastTimer);state.toast='';toastAction=null;renderToast();run()});el.appendChild(b)}}
 function keyName(pc,flats){pc=(pc%12+12)%12;return (flats?KEY_NAMES_FLAT:KEY_NAMES_SHARP)[pc]}
 function scale(mode){return mode==='minor'?MINOR:MAJOR}
 function degreePc(degree,acc='',mode='major'){let x=scale(mode)[clamp((degree||1)-1,0,6)]; if(acc==='#')x++; if(acc==='b')x--; return (x+12)%12}
