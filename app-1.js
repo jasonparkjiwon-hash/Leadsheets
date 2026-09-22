@@ -19,7 +19,7 @@ const clone=o=>JSON.parse(JSON.stringify(o));
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const uid=p=>p+Date.now()+Math.random().toString(36).slice(2,6);
-let state={view:'library',sheets:[],cMajor:[],draft:null,selected:null,staged:null,asLetters:true,filter:'all',sort:'recent',query:'',playing:false,playPos:-1,playPlan:null,metronome:false,volume:1,saveState:'',undo:[],redo:[],toast:'',modal:null,prefs:{},pianoHeld:[],pianoLatch:true,pianoOctave:0};
+let state={view:'library',sheets:[],cMajor:[],cMajorShown:null,draft:null,selected:null,staged:null,asLetters:true,filter:'all',sort:'recent',query:'',playing:false,playPos:-1,playPlan:null,metronome:false,volume:1,saveState:'',undo:[],redo:[],toast:'',modal:null,prefs:{},pianoHeld:[],pianoLatch:true,pianoOctave:0};
 let audio={ctx:null,nodes:[],live:{},timer:null,raf:null};
 
 function migrate(s){
@@ -41,8 +41,8 @@ function persistSheets(){localStorage.setItem(STORE_KEY,JSON.stringify({version:
 function cleanCMajor(list){return Array.isArray(list)?list.filter(x=>x&&typeof x.title==='string'&&x.title.trim()).map(x=>({id:x.id||uid('c'),title:x.title.trim().slice(0,120),artist:String(x.artist||'').trim().slice(0,120)})):[]}
 function saveCMajor(){localStorage.setItem(CMAJOR_KEY,JSON.stringify(state.cMajor))}
 function cMajorKey(x){return (x.title+'|'+x.artist).toLowerCase()}
-function addCMajor(title,artist){const entry={id:uid('c'),title:title.trim().slice(0,120),artist:artist.trim().slice(0,120)};if(!entry.title)return;if(state.cMajor.some(x=>cMajorKey(x)===cMajorKey(entry))){toast('Already on the list');return}state.cMajor.push(entry);saveCMajor();render();$('#cmTitle')?.focus()}
-function removeCMajor(id){state.cMajor=state.cMajor.filter(x=>x.id!==id);saveCMajor();render()}
+function addCMajor(title,artist){const entry={id:uid('c'),title:title.trim().slice(0,120),artist:artist.trim().slice(0,120)};if(!entry.title)return;if(state.cMajor.some(x=>cMajorKey(x)===cMajorKey(entry))){toast('Already on the list');return}state.cMajor.push(entry);state.cMajorShown=entry.id;saveCMajor();render();$('#cmTitle')?.focus()}
+function removeCMajor(id){const gone=state.cMajor.find(x=>x.id===id);if(!gone)return;state.cMajor=state.cMajor.filter(x=>x.id!==id);if(state.cMajorShown===id)state.cMajorShown=null;saveCMajor();render();toast('Removed '+gone.title)}
 function savePrefs(){localStorage.setItem(PREF_KEY,JSON.stringify({volume:state.volume,asLetters:state.asLetters}))}
 let saveTimer=null;
 function scheduleSave(){state.saveState='saving';renderTopOnly();clearTimeout(saveTimer);saveTimer=setTimeout(()=>{if(!state.draft)return; state.draft.savedAt=Date.now(); const i=state.sheets.findIndex(s=>s.id===state.draft.id); if(i>=0)state.sheets[i]=clone(state.draft);else state.sheets.unshift(clone(state.draft));persistSheets();localStorage.removeItem(DRAFT_KEY);state.saveState='saved';renderTopOnly();},450)}
