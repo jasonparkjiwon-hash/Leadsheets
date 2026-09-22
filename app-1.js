@@ -1,6 +1,6 @@
 'use strict';
 const TPB=12;
-const STORE_KEY='leadsheets:v4', DRAFT_KEY='leadsheets:draft', PREF_KEY='leadsheets:v5:prefs';
+const STORE_KEY='leadsheets:v4', DRAFT_KEY='leadsheets:draft', PREF_KEY='leadsheets:v5:prefs', CMAJOR_KEY='leadsheets:cmajor';
 const KEY_NAMES_SHARP=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const KEY_NAMES_FLAT=['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
 const MAJOR=[0,2,4,5,7,9,11], MINOR=[0,2,3,5,7,8,10];
@@ -19,7 +19,7 @@ const clone=o=>JSON.parse(JSON.stringify(o));
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const uid=p=>p+Date.now()+Math.random().toString(36).slice(2,6);
-let state={view:'library',sheets:[],draft:null,selected:null,staged:null,asLetters:true,filter:'all',sort:'recent',query:'',playing:false,playPos:-1,playPlan:null,metronome:false,volume:1,saveState:'',undo:[],redo:[],toast:'',modal:null,prefs:{},pianoHeld:[],pianoLatch:true,pianoOctave:0};
+let state={view:'library',sheets:[],cMajor:[],draft:null,selected:null,staged:null,asLetters:true,filter:'all',sort:'recent',query:'',playing:false,playPos:-1,playPlan:null,metronome:false,volume:1,saveState:'',undo:[],redo:[],toast:'',modal:null,prefs:{},pianoHeld:[],pianoLatch:true,pianoOctave:0};
 let audio={ctx:null,nodes:[],live:{},timer:null,raf:null};
 
 function migrate(s){
@@ -34,9 +34,15 @@ function blankSheet(kind='transcription'){const idea=kind==='original'; return {
 function load(){
   try{const raw=localStorage.getItem(STORE_KEY)||localStorage.getItem('leadsheets:v3')||localStorage.getItem('leadsheets:v2');if(raw){const v=JSON.parse(raw);if(v&&Array.isArray(v.sheets)) state.sheets=v.sheets.map(migrate).filter(Boolean)}}catch(e){}
   try{state.prefs=JSON.parse(localStorage.getItem(PREF_KEY)||'{}');state.volume=state.prefs.volume??1;state.asLetters=state.prefs.asLetters??true}catch(e){}
+  try{state.cMajor=cleanCMajor(JSON.parse(localStorage.getItem(CMAJOR_KEY)||'[]'))}catch(e){}
   render();
 }
 function persistSheets(){localStorage.setItem(STORE_KEY,JSON.stringify({version:4,savedAt:Date.now(),sheets:state.sheets}))}
+function cleanCMajor(list){return Array.isArray(list)?list.filter(x=>x&&typeof x.title==='string'&&x.title.trim()).map(x=>({id:x.id||uid('c'),title:x.title.trim().slice(0,120),artist:String(x.artist||'').trim().slice(0,120)})):[]}
+function saveCMajor(){localStorage.setItem(CMAJOR_KEY,JSON.stringify(state.cMajor))}
+function cMajorKey(x){return (x.title+'|'+x.artist).toLowerCase()}
+function addCMajor(title,artist){const entry={id:uid('c'),title:title.trim().slice(0,120),artist:artist.trim().slice(0,120)};if(!entry.title)return;if(state.cMajor.some(x=>cMajorKey(x)===cMajorKey(entry))){toast('Already on the list');return}state.cMajor.push(entry);saveCMajor();render();$('#cmTitle')?.focus()}
+function removeCMajor(id){state.cMajor=state.cMajor.filter(x=>x.id!==id);saveCMajor();render()}
 function savePrefs(){localStorage.setItem(PREF_KEY,JSON.stringify({volume:state.volume,asLetters:state.asLetters}))}
 let saveTimer=null;
 function scheduleSave(){state.saveState='saving';renderTopOnly();clearTimeout(saveTimer);saveTimer=setTimeout(()=>{if(!state.draft)return; state.draft.savedAt=Date.now(); const i=state.sheets.findIndex(s=>s.id===state.draft.id); if(i>=0)state.sheets[i]=clone(state.draft);else state.sheets.unshift(clone(state.draft));persistSheets();localStorage.removeItem(DRAFT_KEY);state.saveState='saved';renderTopOnly();},450)}
@@ -67,8 +73,8 @@ function backLibrary(){stopPlayback();state.view='library';state.draft=null;stat
 function duplicateSheet(id){const s=clone(state.sheets.find(x=>x.id===id));s.id=uid('s');s.title=(s.title||'Untitled')+' (copy)';s.savedAt=Date.now();state.sheets.unshift(s);persistSheets();render();toast('Duplicated')}
 function deleteSheet(id){state.sheets=state.sheets.filter(s=>s.id!==id);persistSheets();render();toast('Deleted')}
 function download(name,text,type='application/json'){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
-function exportAll(){download('lead-sheets.json',JSON.stringify({version:4,savedAt:Date.now(),sheets:state.sheets},null,2))}
-function importJson(file){const r=new FileReader();r.onload=()=>{try{const p=JSON.parse(String(r.result));const inc=Array.isArray(p)?p:p.sheets;if(!Array.isArray(inc))throw 0;const clean=inc.map(migrate).filter(Boolean);const ids=new Set(clean.map(s=>s.id));state.sheets=[...clean,...state.sheets.filter(s=>!ids.has(s.id))];persistSheets();render();toast(`Imported ${clean.length} sheet${clean.length===1?'':'s'}`)}catch(e){alert('That file does not look like a Lead Sheets JSON backup.')}};r.readAsText(file)}
+function exportAll(){download('lead-sheets.json',JSON.stringify({version:4,savedAt:Date.now(),sheets:state.sheets,cMajor:state.cMajor},null,2))}
+function importJson(file){const r=new FileReader();r.onload=()=>{try{const p=JSON.parse(String(r.result));const inc=Array.isArray(p)?p:p.sheets;if(!Array.isArray(inc))throw 0;const clean=inc.map(migrate).filter(Boolean);const ids=new Set(clean.map(s=>s.id));state.sheets=[...clean,...state.sheets.filter(s=>!ids.has(s.id))];persistSheets();if(!Array.isArray(p)){const have=new Set(state.cMajor.map(cMajorKey));cleanCMajor(p.cMajor).forEach(x=>{if(!have.has(cMajorKey(x))){have.add(cMajorKey(x));state.cMajor.push(x)}});saveCMajor()}render();toast(`Imported ${clean.length} sheet${clean.length===1?'':'s'}`)}catch(e){alert('That file does not look like a Lead Sheets JSON backup.')}};r.readAsText(file)}
 function chartText(s){let out=[`${s.title||'Untitled'}${s.artist?' — '+s.artist:''}`,`${s.keyName} ${s.mode} · ${s.bpb}/${s.unit} · ${s.tempo||90} bpm${s.feel?' · '+s.feel:''}`,''];s.blocks.forEach((b,bi)=>{out.push(`${b.name||'Section '+(bi+1)}${b.repeats>1?' ×'+b.repeats:''}`);const bt=s.bpb*TPB;layoutBars(b.chords,bt).forEach(bar=>out.push('| '+bar.map(x=>x.tied?'~':chordLabel(x.chord,s)+(x.ticks!==TPB?`(${fmtBeats(x.ticks)})`:'')).join('  ')+' |'));if(b.note)out.push('  '+b.note);out.push('')});return out.join('\n')}
 async function copyChart(){try{await navigator.clipboard.writeText(chartText(state.draft));toast('Chart copied')}catch(e){state.modal='text';render()}}
 function fmtBeats(t){const n=t/TPB;return Number.isInteger(n)?String(n):String(Math.round(n*100)/100)}

@@ -8,6 +8,9 @@ function wire(){
   document.querySelectorAll('[data-filter]').forEach(el=>el.addEventListener('click',()=>{state.filter=el.dataset.filter;render()}));
   $('#search')?.addEventListener('input',e=>{state.query=e.target.value;render()});
   $('#sort')?.addEventListener('change',e=>{state.sort=e.target.value;render()});
+  $('#cmajorForm')?.addEventListener('submit',e=>{e.preventDefault();addCMajor($('#cmTitle').value,$('#cmArtist').value)});
+  $('#cmTitle')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#cmArtist').focus()}});
+  document.querySelectorAll('[data-cm-del]').forEach(el=>el.addEventListener('click',()=>removeCMajor(el.dataset.cmDel)));
   if(typeof wireChordCells==='function')wireChordCells();
   else document.querySelectorAll('[data-chord]').forEach(el=>el.addEventListener('click',()=>{const [b,c]=el.dataset.chord.split(':').map(Number);selectChord(b,c)}));
   document.querySelectorAll('[data-degree]').forEach(el=>el.addEventListener('click',()=>addChord(Number(el.dataset.degree))));
